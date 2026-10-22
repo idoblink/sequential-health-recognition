@@ -210,8 +210,9 @@
         await Promise.all([loadSignals(), loadObservationCount()]);
         await loadCharts();
 
-        // Automatically run sequential analysis in background to populate metrics immediately
-        await runAnalysis(false);
+        // Reset analysis state until user explicitly clicks the button
+        latestAnalysisResult = null;
+        resetAnalysisUI(sourceId);
 
         // If currently viewing observations table, refresh it
         if (currentView === "observations") {
@@ -513,30 +514,114 @@
 
     // ── Analysis ──────────────────────────────────────────────
     function setupAnalyzeButtons() {
-        if (btnAnalyzeDash) btnAnalyzeDash.addEventListener("click", () => runAnalysis(true));
-        if (btnAnalyzeMain) btnAnalyzeMain.addEventListener("click", () => runAnalysis(true));
+        if (btnAnalyzeDash) btnAnalyzeDash.addEventListener("click", () => runAnalysis());
+        if (btnAnalyzeMain) btnAnalyzeMain.addEventListener("click", () => runAnalysis());
     }
 
-    async function runAnalysis(showLoading = true) {
+    function resetAnalysisUI(sourceId) {
+        // Reset Dashboard Stat Cards
+        const latestStatusElem = document.getElementById("stat-latest-status");
+        const flaggedElem = document.getElementById("stat-flagged");
+        if (latestStatusElem) {
+            latestStatusElem.textContent = "—";
+            latestStatusElem.style.color = "var(--text-muted)";
+            latestStatusElem.style.fontSize = "24px";
+        }
+        if (flaggedElem) {
+            flaggedElem.textContent = "—";
+        }
+
+        // Idle state on Dashboard
+        const dashSummary = document.getElementById("dashboard-analysis-summary");
+        if (dashSummary) {
+            dashSummary.innerHTML = `
+                <div class="analysis-idle-box">
+                    <div>
+                        <span>⚡ Ready to analyze <strong>Case ${sourceId}</strong>. Click the button to run the rule-based pattern recognition engine across all vital-sign tracks.</span>
+                    </div>
+                    <button class="btn btn-primary btn-sm" id="btn-analyze-idle-dash">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        Analyze Sequence
+                    </button>
+                </div>
+            `;
+            const btnIdleDash = document.getElementById("btn-analyze-idle-dash");
+            if (btnIdleDash) btnIdleDash.addEventListener("click", () => runAnalysis());
+        }
+
+        // Idle state on Analysis page
+        const analysisResults = document.getElementById("analysis-results");
+        if (analysisResults) {
+            analysisResults.innerHTML = `
+                <div class="analysis-idle-card">
+                    <div class="idle-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    </div>
+                    <h3>No Analysis Run Yet for Case ${sourceId}</h3>
+                    <p>Click below to evaluate this patient's time-ordered observations against demonstration thresholds and detect sustained multi-step trends.</p>
+                    <button class="btn btn-primary" id="btn-analyze-idle-main">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        Run Sequential Analysis Now
+                    </button>
+                </div>
+            `;
+            const btnIdleMain = document.getElementById("btn-analyze-idle-main");
+            if (btnIdleMain) btnIdleMain.addEventListener("click", () => runAnalysis());
+        }
+    }
+
+    async function runAnalysis() {
         if (!selectedCaseId) return;
+
+        const caseObj = casesData.find((c) => c.id === selectedCaseId);
+        const sourceId = caseObj ? caseObj.source_case_id : selectedCaseId;
 
         const dashSummary = document.getElementById("dashboard-analysis-summary");
         const analysisResults = document.getElementById("analysis-results");
 
-        if (showLoading) {
-            const loadingHtml =
-                '<div class="loading-spinner"><span class="spinner"></span> Analyzing sequential observations…</div>';
-            if (dashSummary) dashSummary.innerHTML = loadingHtml;
-            if (analysisResults) analysisResults.innerHTML = `<div class="card"><div class="card-body">${loadingHtml}</div></div>`;
-            if (btnAnalyzeDash) btnAnalyzeDash.disabled = true;
-            if (btnAnalyzeMain) btnAnalyzeMain.disabled = true;
+        // 1. Show Loading Screen in both views
+        if (dashSummary) {
+            dashSummary.innerHTML = `
+                <div class="analysis-loading-box">
+                    <div class="spinner-large"></div>
+                    <h4>Analyzing Case ${sourceId} Sequence…</h4>
+                    <p>Evaluating thresholds & identifying sequential patterns…</p>
+                    <div class="loading-progress-bar"><div class="loading-progress-fill"></div></div>
+                </div>
+            `;
+        }
+
+        if (analysisResults) {
+            analysisResults.innerHTML = `
+                <div class="analysis-loading-card">
+                    <div class="spinner-large"></div>
+                    <h3>Running Sequential Pattern Analysis…</h3>
+                    <p>Ingesting real time-series observations for Case ${sourceId} from VitalDB · Checking demonstration thresholds · Detecting multi-step directional trends…</p>
+                    <div class="loading-progress-bar"><div class="loading-progress-fill"></div></div>
+                </div>
+            `;
+        }
+
+        // Update button states
+        if (btnAnalyzeDash) {
+            btnAnalyzeDash.disabled = true;
+            btnAnalyzeDash.innerHTML = `<span class="spinner"></span> Analyzing…`;
+        }
+        if (btnAnalyzeMain) {
+            btnAnalyzeMain.disabled = true;
+            btnAnalyzeMain.innerHTML = `<span class="spinner"></span> Analyzing Case ${sourceId}…`;
         }
 
         try {
-            const result = await apiPost(`/api/cases/${selectedCaseId}/analyze`);
+            // Run API request with a deliberate minimum delay (600ms) for realistic UX
+            const [result] = await Promise.all([
+                apiPost(`/api/cases/${selectedCaseId}/analyze`),
+                new Promise((resolve) => setTimeout(resolve, 600))
+            ]);
+
             latestAnalysisResult = result;
 
-            // Update Dashboard Stat Cards
+            // 2. Update Dashboard Stat Cards
             const latestStatusElem = document.getElementById("stat-latest-status");
             const flaggedElem = document.getElementById("stat-flagged");
 
@@ -556,23 +641,34 @@
                 flaggedElem.textContent = (result.flagged_total != null ? result.flagged_total : 0).toLocaleString();
             }
 
-            // Render Dashboard summary
+            // 3. Render Dashboard summary & Full Analysis view
             if (dashSummary) {
                 dashSummary.innerHTML = renderAnalysisBrief(result);
             }
 
-            // Render Full Analysis view
             if (analysisResults) {
                 analysisResults.innerHTML = renderAnalysisResults(result);
             }
         } catch (err) {
             console.error("Analysis failed:", err);
-            const errHtml = '<p class="text-muted">Error running analysis. Please try again.</p>';
+            const errHtml = '<p class="text-muted" style="padding:20px;text-align:center;">Error running analysis. Please try again.</p>';
             if (dashSummary) dashSummary.innerHTML = errHtml;
-            if (analysisResults) analysisResults.innerHTML = `<div class="card"><div class="card-body">${errHtml}</div></div>`;
+            if (analysisResults) analysisResults.innerHTML = errHtml;
         } finally {
-            if (btnAnalyzeDash) btnAnalyzeDash.disabled = false;
-            if (btnAnalyzeMain) btnAnalyzeMain.disabled = false;
+            if (btnAnalyzeDash) {
+                btnAnalyzeDash.disabled = false;
+                btnAnalyzeDash.innerHTML = `
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Analyze Sequence
+                `;
+            }
+            if (btnAnalyzeMain) {
+                btnAnalyzeMain.disabled = false;
+                btnAnalyzeMain.innerHTML = `
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    Re-Analyze Case
+                `;
+            }
         }
     }
 
