@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Sequential Health-State Recognition — an educational academic web application analyzing surgical monitoring data from VitalDB using rule-based pattern recognition.">
+    <title>Sequential Health-State Recognition</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- Top Navigation Bar -->
+    <header class="navbar" id="navbar">
+        <div class="navbar-inner">
+            <!-- Brand -->
+            <div class="navbar-brand">
+                <div class="brand-icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                </div>
+                <div class="brand-info">
+                    <span class="brand-title">Sequential Health States</span>
+                    <span class="brand-badge">VitalDB Demo</span>
+                </div>
+            </div>
+
+            <!-- Segmented Navigation Tabs -->
+            <nav class="nav-tabs" role="tablist">
+                <button class="nav-btn active" data-view="dashboard" id="nav-dashboard">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="7"/>
+                        <rect x="14" y="3" width="7" height="7"/>
+                        <rect x="14" y="14" width="7" height="7"/>
+                        <rect x="3" y="14" width="7" height="7"/>
+                    </svg>
+                    <span>Dashboard</span>
+                </button>
+                <button class="nav-btn" data-view="observations" id="nav-observations">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    <span>Observations</span>
+                </button>
+                <button class="nav-btn" data-view="analysis" id="nav-analysis">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10"/>
+                        <line x1="12" y1="20" x2="12" y2="4"/>
+                        <line x1="6" y1="20" x2="6" y2="14"/>
+                    </svg>
+                    <span>Analysis</span>
+                </button>
+                <button class="nav-btn" data-view="about" id="nav-about">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="16" x2="12" y2="12"/>
+                        <line x1="12" y1="8" x2="12.01" y2="8"/>
+                    </svg>
+                    <span>About</span>
+                </button>
+            </nav>
+
+            <!-- Quick Case Selector -->
+            <div class="navbar-case-control">
+                <span class="case-label">Case:</span>
+                <div class="case-pills" id="case-pills" aria-label="Select case pills"></div>
+                <select id="case-selector" class="select-input select-case" aria-label="Select case dropdown">
+                    <option value="">Select a case…</option>
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="main-container">
+        <!-- Hidden elements preserved for compatibility -->
+        <span id="topbar-title" class="sr-only">Dashboard</span>
+        <button id="sidebar-toggle" class="sr-only" aria-hidden="true"></button>
+        <div id="sidebar" class="sr-only" aria-hidden="true"></div>
+
+        <!-- Empty State (when DB has 0 cases) -->
+        <div class="view empty-state-view" id="view-empty" style="display: none;">
+            <div class="empty-state-card">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="empty-icon">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                </svg>
+                <h2>No VitalDB Cases Imported Yet</h2>
+                <p>Run these commands to import real surgical monitoring cases from VitalDB:</p>
+                <div class="empty-steps">
+                    <code>python scripts/init_db.py</code>
+                    <code>python scripts/import_vitaldb.py --num-cases 3</code>
+                    <code>python app.py</code>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════ DASHBOARD ═══════════════ -->
+        <section class="view active-view" id="view-dashboard">
+            <!-- Active Case Header Banner -->
+            <div class="case-banner">
+                <div class="case-banner-left">
+                    <div class="case-badge-pill" id="active-case-badge">Case 1</div>
+                    <div>
+                        <h1 class="case-banner-title" id="active-case-title">Patient Monitoring Sequence</h1>
+                        <p class="case-banner-subtitle" id="active-case-subtitle">Real de-identified surgical monitoring data from VitalDB open repository</p>
+                    </div>
+                </div>
+                <div class="case-banner-actions">
+                    <button class="btn btn-primary btn-sm" id="btn-analyze-dashboard">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        Analyze Sequence
+                    </button>
+                    <button class="btn btn-secondary btn-sm" id="btn-jump-observations">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                        View Raw Table
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid" id="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Imported Cases</div>
+                    <div class="stat-value" id="stat-total-cases">—</div>
+                    <div class="stat-caption">Available in SQLite</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Case Observations</div>
+                    <div class="stat-value" id="stat-total-obs">—</div>
+                    <div class="stat-caption" id="stat-signals-caption">Real clinical points</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Recognized Health State</div>
+                    <div class="stat-value" id="stat-latest-status">—</div>
+                    <div class="stat-caption">Rule-based classification</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Flagged Observations</div>
+                    <div class="stat-value" id="stat-flagged">—</div>
+                    <div class="stat-caption">Warning or critical events</div>
+                </div>
+            </div>
+
+            <!-- Vital Signs Charts -->
+            <div class="card" id="dashboard-charts-card">
+                <div class="card-header">
+                    <div>
+                        <h2>Vital Signs — Continuous Monitoring Charts</h2>
+                        <p class="card-subtitle">Real-time physiological measurements across surgical monitoring tracks</p>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="charts-grid" id="charts-container">
+                        <div class="chart-placeholder">
+                            <p>Loading charts…</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Analysis Summary Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-header-row">
+                        <div>
+                            <h2>Rule-Based Demonstration Analysis</h2>
+                            <p class="card-subtitle">State classification breakdown & transparent rule explanations</p>
+                        </div>
+                        <button class="btn btn-secondary btn-sm" id="btn-jump-analysis">
+                            Open Full Analysis Details →
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body" id="dashboard-analysis-summary">
+                    <p class="text-muted">Analyzing sequential observations…</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════ OBSERVATIONS ═══════════════ -->
+        <section class="view" id="view-observations" style="display:none;">
+            <div class="view-header">
+                <div>
+                    <h1 class="view-title">Chronological Observations</h1>
+                    <p class="view-subtitle">Raw surgical measurement records from VitalDB, strictly ordered by elapsed time</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-header-row">
+                        <div class="signal-filter-wrapper">
+                            <span class="filter-label">Filter Signal:</span>
+                            <select id="signal-filter" class="select-input select-small" aria-label="Filter observations by signal">
+                                <option value="">All Signals</option>
+                            </select>
+                        </div>
+                        <div class="obs-count-indicator" id="obs-count-indicator"></div>
+                    </div>
+                </div>
+                <div class="card-body card-body-flush">
+                    <div class="table-wrapper">
+                        <table class="data-table" id="observations-table">
+                            <thead>
+                                <tr>
+                                    <th>Elapsed Time</th>
+                                    <th>Signal Track</th>
+                                    <th>Measured Value</th>
+                                    <th>Unit</th>
+                                </tr>
+                            </thead>
+                            <tbody id="observations-tbody">
+                                <tr><td colspan="4" class="text-muted text-center" style="padding:24px;">Select a case to view observations.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="pagination" id="obs-pagination"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════ ANALYSIS ═══════════════ -->
+        <section class="view" id="view-analysis" style="display:none;">
+            <div class="view-header">
+                <div>
+                    <h1 class="view-title">Sequential Pattern Analysis</h1>
+                    <p class="view-subtitle">Rule-based pattern recognition, sustained trends, and threshold classifications</p>
+                </div>
+                <button class="btn btn-primary btn-sm" id="btn-analyze-main">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="5 3 19 12 5 21 5 3"/>
+                    </svg>
+                    Re-Analyze Case
+                </button>
+            </div>
+
+            <div id="analysis-results">
+                <div class="card">
+                    <div class="card-body">
+                        <p class="text-muted">Loading analysis results…</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════════ ABOUT ═══════════════ -->
+        <section class="view" id="view-about" style="display:none;">
+            <div class="view-header">
+                <div>
+                    <h1 class="view-title">About This Project</h1>
+                    <p class="view-subtitle">Sequential Health-State Recognition — Beginner-friendly academic demonstration</p>
+                </div>
+            </div>
+
+            <div class="about-grid">
+                <div class="card">
+                    <div class="card-header"><h2>Project Statement &amp; Objective</h2></div>
+                    <div class="card-body">
+                        <p class="lead-quote">“Analyze sequential patient-monitoring observations and identify patterns corresponding to different health states.”</p>
+                        <p>This academic web application demonstrates how time-series physiological measurements can be ingested from open repositories, organized in SQLite, visualized with Chart.js, and analyzed using transparent sequential rules.</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h2>Real Clinical Dataset — VitalDB</h2></div>
+                    <div class="card-body">
+                        <p>All measurements displayed in this system are real, de-identified clinical records from <strong>VitalDB</strong>.</p>
+                        <p><strong>Clinical Context:</strong> This data originates from <em>intraoperative / surgical monitoring</em> in operating theaters, not general ward monitoring. Vitals fluctuate due to surgical events, anesthesia agents, and clinical interventions.</p>
+                        <div class="citation-box">
+                            <strong>Official Citation:</strong><br>
+                            Lee HC, Park Y, Yoon SB, et al. VitalDB, a high-fidelity multi-parameter vital signs database in surgical patients. <em>Scientific Data</em>. 2022;9(1):279.
+                        </div>
+                        <p class="citation-license"><strong>License:</strong> Creative Commons Attribution 4.0 International (CC BY 4.0).</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h2>Rule-Based Demonstration Algorithm</h2></div>
+                    <div class="card-body">
+                        <p>The analysis engine runs deterministically on the backend in Python:</p>
+                        <ul class="about-list">
+                            <li><strong>Heart Rate (HR):</strong> Normal [60–100 bpm], Warning [50–110], Critical [&le;40 or &ge;130 bpm].</li>
+                            <li><strong>Oxygen Saturation (SpO₂):</strong> Normal [95–100%], Warning [90–94.9%], Critical [&le;89.9%].</li>
+                            <li><strong>Systolic Blood Pressure (NIBP_SBP):</strong> Normal [90–140 mmHg], Warning [80–160], Critical [&le;60 or &ge;180].</li>
+                            <li><strong>Diastolic Blood Pressure (NIBP_DBP):</strong> Normal [60–90 mmHg], Warning [50–100], Critical [&le;40 or &ge;110].</li>
+                            <li><strong>Body Temperature (BT):</strong> Normal [36.0–37.5 °C], Warning [35.0–38.5], Critical [&le;34.0 or &ge;39.5].</li>
+                            <li><strong>Sequential Trend Detection:</strong> Identifies sustained increases or decreases across &ge;5 consecutive readings within 30-second time gaps.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h2>Simple Architecture Stack</h2></div>
+                    <div class="card-body">
+                        <ul class="about-list">
+                            <li><strong>Backend:</strong> Python with Flask (clean REST JSON API)</li>
+                            <li><strong>Database:</strong> SQLite via Python's built-in <code>sqlite3</code> module</li>
+                            <li><strong>Frontend:</strong> HTML5, Vanilla CSS3, Vanilla JavaScript (no React/Node build steps)</li>
+                            <li><strong>Visualization:</strong> Chart.js with responsive canvas elements</li>
+                            <li><strong>Dataset Loader:</strong> Official <code>vitaldb</code> Python package</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="card card-full-width">
+                    <div class="card-header"><h2>Educational &amp; Research Disclaimer</h2></div>
+                    <div class="card-body">
+                        <div class="disclaimer-banner">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                <line x1="12" y1="9" x2="12" y2="13"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                            <span><strong>Not a Clinical Medical Device:</strong> This application is developed solely for academic coursework, data processing education, and algorithm demonstration. Do not use for patient diagnosis or clinical care.</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
